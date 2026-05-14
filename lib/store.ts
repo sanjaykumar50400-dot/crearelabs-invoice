@@ -1,7 +1,11 @@
-// Persistent store using Vercel KV (Redis)
-// All data survives serverless cold starts and deploys
+// Persistent store using Upstash Redis
+// Works perfectly on Vercel serverless — data never resets
 
-import { Redis } from '@upstash/redis'; const redis = Redis.fromEnv();
+import { Redis } from '@upstash/redis';
+
+// Upstash Redis client — reads UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN
+// from environment variables (auto-injected by Vercel Marketplace integration)
+const redis = Redis.fromEnv();
 
 export interface Service {
   id: string;
@@ -49,32 +53,33 @@ export interface Invoice {
   emailSent?: boolean;
 }
 
-// ─── Services ─────────────────────────────────────────
+// ─── Services ─────────────────────────────────────────────────────────────────
+
 export async function getServices(): Promise<Service[]> {
-  const data = await redis.get<Service[]>('services');
+  const data = await redis.get<Service[]>('cl:services');
   if (data && data.length > 0) return data;
-  // Seed defaults on first run
   const defaults: Service[] = [
     { id: 's1', name: 'Logo Design', amount: 5000, desc: 'Brand logo with multiple concepts' },
     { id: 's2', name: 'Website Design', amount: 25000, desc: 'Full responsive website UI/UX' },
     { id: 's3', name: 'Social Media Package', amount: 8000, desc: 'Monthly social media management' },
     { id: 's4', name: 'Brand Identity', amount: 15000, desc: 'Complete branding kit' },
   ];
-  await redis.set('services', defaults);
+  await redis.set('cl:services', defaults);
   return defaults;
 }
 
 export async function saveServices(services: Service[]): Promise<void> {
-  await redis.set('services', services);
+  await redis.set('cl:services', services);
 }
 
-// ─── Invoices ─────────────────────────────────────────
+// ─── Invoices ─────────────────────────────────────────────────────────────────
+
 export async function getInvoices(): Promise<Invoice[]> {
-  return (await redis.get<Invoice[]>('invoices')) ?? [];
+  return (await redis.get<Invoice[]>('cl:invoices')) ?? [];
 }
 
 export async function saveInvoices(invoices: Invoice[]): Promise<void> {
-  await redis.set('invoices', invoices);
+  await redis.set('cl:invoices', invoices);
 }
 
 export async function getInvoice(id: string): Promise<Invoice | null> {
@@ -90,47 +95,50 @@ export async function updateInvoice(updated: Invoice): Promise<void> {
   await saveInvoices(invoices);
 }
 
-// ─── Discount Codes ───────────────────────────────────
+// ─── Discount Codes ───────────────────────────────────────────────────────────
+
 export async function getDiscounts(): Promise<DiscountCode[]> {
-  const data = await redis.get<DiscountCode[]>('discounts');
+  const data = await redis.get<DiscountCode[]>('cl:discounts');
   if (data && data.length > 0) return data;
   const defaults: DiscountCode[] = [
     { id: 'dc1', code: 'LAUNCH20', type: 'percent', value: 20, used: false, createdAt: Date.now() },
     { id: 'dc2', code: 'FLAT500', type: 'flat', value: 500, used: false, createdAt: Date.now() },
   ];
-  await redis.set('discounts', defaults);
+  await redis.set('cl:discounts', defaults);
   return defaults;
 }
 
 export async function saveDiscounts(discounts: DiscountCode[]): Promise<void> {
-  await redis.set('discounts', discounts);
+  await redis.set('cl:discounts', discounts);
 }
 
-// ─── Sessions ─────────────────────────────────────────
+// ─── Sessions ─────────────────────────────────────────────────────────────────
+
 export async function createSession(token: string): Promise<void> {
-  // Sessions expire after 7 days
-  await redis.set(`session:${token}`, '1', { ex: 60 * 60 * 24 * 7 });
+  // 7-day expiry
+  await redis.set(`cl:session:${token}`, '1', { ex: 60 * 60 * 24 * 7 });
 }
 
 export async function verifySession(token: string): Promise<boolean> {
-  const val = await redis.get(`session:${token}`);
+  const val = await redis.get(`cl:session:${token}`);
   return val === '1';
 }
 
 export async function deleteSession(token: string): Promise<void> {
-  await redis.del(`session:${token}`);
+  await redis.del(`cl:session:${token}`);
 }
 
-// ─── OTP ──────────────────────────────────────────────
+// ─── OTP ──────────────────────────────────────────────────────────────────────
+
 export async function saveOTP(otp: string): Promise<void> {
-  // OTP expires in 10 minutes
-  await redis.set('admin:otp', otp, { ex: 600 });
+  // 10-minute expiry
+  await redis.set('cl:admin:otp', otp, { ex: 600 });
 }
 
 export async function getOTP(): Promise<string | null> {
-  return redis.get<string>('admin:otp');
+  return redis.get<string>('cl:admin:otp');
 }
 
 export async function deleteOTP(): Promise<void> {
-  await redis.del('admin:otp');
+  await redis.del('cl:admin:otp');
 }
