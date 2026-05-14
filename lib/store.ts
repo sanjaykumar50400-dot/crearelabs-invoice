@@ -1,7 +1,7 @@
 // Persistent store using Vercel KV (Redis)
 // All data survives serverless cold starts and deploys
 
-import { kv } from '@vercel/kv';
+import { Redis } from '@upstash/redis'; const redis = Redis.fromEnv();
 
 export interface Service {
   id: string;
@@ -51,7 +51,7 @@ export interface Invoice {
 
 // ─── Services ─────────────────────────────────────────
 export async function getServices(): Promise<Service[]> {
-  const data = await kv.get<Service[]>('services');
+  const data = await redis.get<Service[]>('services');
   if (data && data.length > 0) return data;
   // Seed defaults on first run
   const defaults: Service[] = [
@@ -60,21 +60,21 @@ export async function getServices(): Promise<Service[]> {
     { id: 's3', name: 'Social Media Package', amount: 8000, desc: 'Monthly social media management' },
     { id: 's4', name: 'Brand Identity', amount: 15000, desc: 'Complete branding kit' },
   ];
-  await kv.set('services', defaults);
+  await redis.set('services', defaults);
   return defaults;
 }
 
 export async function saveServices(services: Service[]): Promise<void> {
-  await kv.set('services', services);
+  await redis.set('services', services);
 }
 
 // ─── Invoices ─────────────────────────────────────────
 export async function getInvoices(): Promise<Invoice[]> {
-  return (await kv.get<Invoice[]>('invoices')) ?? [];
+  return (await redis.get<Invoice[]>('invoices')) ?? [];
 }
 
 export async function saveInvoices(invoices: Invoice[]): Promise<void> {
-  await kv.set('invoices', invoices);
+  await redis.set('invoices', invoices);
 }
 
 export async function getInvoice(id: string): Promise<Invoice | null> {
@@ -92,45 +92,45 @@ export async function updateInvoice(updated: Invoice): Promise<void> {
 
 // ─── Discount Codes ───────────────────────────────────
 export async function getDiscounts(): Promise<DiscountCode[]> {
-  const data = await kv.get<DiscountCode[]>('discounts');
+  const data = await redis.get<DiscountCode[]>('discounts');
   if (data && data.length > 0) return data;
   const defaults: DiscountCode[] = [
     { id: 'dc1', code: 'LAUNCH20', type: 'percent', value: 20, used: false, createdAt: Date.now() },
     { id: 'dc2', code: 'FLAT500', type: 'flat', value: 500, used: false, createdAt: Date.now() },
   ];
-  await kv.set('discounts', defaults);
+  await redis.set('discounts', defaults);
   return defaults;
 }
 
 export async function saveDiscounts(discounts: DiscountCode[]): Promise<void> {
-  await kv.set('discounts', discounts);
+  await redis.set('discounts', discounts);
 }
 
 // ─── Sessions ─────────────────────────────────────────
 export async function createSession(token: string): Promise<void> {
   // Sessions expire after 7 days
-  await kv.set(`session:${token}`, '1', { ex: 60 * 60 * 24 * 7 });
+  await redis.set(`session:${token}`, '1', { ex: 60 * 60 * 24 * 7 });
 }
 
 export async function verifySession(token: string): Promise<boolean> {
-  const val = await kv.get(`session:${token}`);
+  const val = await redis.get(`session:${token}`);
   return val === '1';
 }
 
 export async function deleteSession(token: string): Promise<void> {
-  await kv.del(`session:${token}`);
+  await redis.del(`session:${token}`);
 }
 
 // ─── OTP ──────────────────────────────────────────────
 export async function saveOTP(otp: string): Promise<void> {
   // OTP expires in 10 minutes
-  await kv.set('admin:otp', otp, { ex: 600 });
+  await redis.set('admin:otp', otp, { ex: 600 });
 }
 
 export async function getOTP(): Promise<string | null> {
-  return kv.get<string>('admin:otp');
+  return redis.get<string>('admin:otp');
 }
 
 export async function deleteOTP(): Promise<void> {
-  await kv.del('admin:otp');
+  await redis.del('admin:otp');
 }
